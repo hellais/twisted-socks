@@ -18,7 +18,7 @@ class SOCKSv4ClientProtocol(Protocol):
     handshakeDone = None
     buf = ''
 
-    def	SOCKSConnect(self, host, port):
+    def SOCKSConnect(self, host, port):
         # only socksv4a for now
         ver = 4
         cmd = 1                 # stream connection
@@ -58,8 +58,11 @@ class SOCKSv4ClientProtocol(Protocol):
 
     def dataReceived(self, data):
         if self.isSuccess(data):
+            import traceback
+            print "--------- I have success!!!"
+            #traceback.print_stack()
             # Build protocol from provided factory and transfer control to it.
-	    self.transport.protocol = self.postHandshakeFactory.buildProtocol(
+            self.transport.protocol = self.postHandshakeFactory.buildProtocol(
                 self.transport.getHost())
             self.transport.protocol.transport = self.transport
             self.transport.protocol.connectionMade()
@@ -68,6 +71,13 @@ class SOCKSv4ClientProtocol(Protocol):
 
 class SOCKSv4ClientFactory(ClientFactory):
     protocol = SOCKSv4ClientProtocol
+
+    def buildProtocol(self, addr):
+        r=ClientFactory.buildProtocol(self, addr)
+        r.postHandshakeEndpoint = self.postHandshakeEndpoint
+        r.postHandshakeFactory = self.postHandshakeFactory
+        r.handshakeDone = self.handshakeDone
+        return r
 
 
 class SOCKSWrapper(object):
@@ -78,7 +88,7 @@ class SOCKSWrapper(object):
         self._host = host
         self._port = port
         self._reactor = reactor
-	self._endpoint = endpoint
+        self._endpoint = endpoint
 
     def connect(self, protocolFactory):
         """
@@ -88,18 +98,18 @@ class SOCKSWrapper(object):
         def _canceller(deferred):
             connector.stopConnecting()
             deferred.errback(
-		error.ConnectingCancelledError(connector.getDestination()))
+                error.ConnectingCancelledError(connector.getDestination()))
 
         try:
             # Connect with an intermediate SOCKS factory/protocol,
             # which then hands control to the provided protocolFactory
             # once a SOCKS connection has been established.
             f = self.factory()
-            f.protocol.postHandshakeEndpoint = self._endpoint
-            f.protocol.postHandshakeFactory = protocolFactory
-            f.protocol.handshakeDone = defer.Deferred()
+            f.postHandshakeEndpoint = self._endpoint
+            f.postHandshakeFactory = protocolFactory
+            f.handshakeDone = defer.Deferred()
             wf = _WrappingFactory(f, _canceller)
             self._reactor.connectTCP(self._host, self._port, wf)
             return f.protocol.handshakeDone
-        except: 
-            return defer.fail() 
+        except:
+            return defer.fail()
